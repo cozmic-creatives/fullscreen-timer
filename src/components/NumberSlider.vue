@@ -1,210 +1,196 @@
 <template>
-  <div
-    class="number-slider"
-    @wheel="handleWheel"
-    @mousedown="startDrag"
-    @mousemove="drag"
-    @mouseup="stopDrag"
-    @mouseleave="stopDrag"
-    @click="focus"
-    @focus="focus"
-    @keydown="handleKeyDown"
-    ref="sliderContainer"
-    :class="{ 'countdown-running': isRunning, 'is-focused': isFocused }"
-  >
-    <div class="slider-inner" ref="sliderInner">
-      <div class="slider-item spacer"></div>
-      <div
-        v-for="i in finalNumber + 1"
-        :key="`number-${i - 1}`"
-        class="slider-item"
-      >
-        {{ formatNumber(i - 1) }}
+  <div class="number-slider-container" v-if="scrollable">
+    <div class="number-slider-box" v-show="isFocused"></div>
+    <div
+      class="number-slider"
+      tabindex="0"
+      @focus="isFocused = true"
+      @blur="isFocused = false"
+      ref="sliderContainer"
+      :class="{
+        'is-running': isRunning,
+        'is-focused': isFocused,
+        'cursor-grabbing': pressed && scrollable,
+        'snap-scroll': !pressed && scrollable,
+      }"
+    >
+      <div class="slider-inner">
+        <div class="slider-item spacer"></div>
+
+        <div
+          v-for="i in finalNumber + 1"
+          :key="`number-${i - 1}`"
+          class="slider-item"
+        >
+          {{ formatNumber(i - 1) }}
+        </div>
+
+        <div class="slider-item spacer"></div>
       </div>
-      <div class="slider-item spacer"></div>
     </div>
-    <div class="active-number-box" v-if="isFocused"></div>
+  </div>
+
+  <div v-else class="slider-item">
+    {{ formatNumber(activeNumber) }}
   </div>
 </template>
 
-<script setup>
-import { ref, watch, onMounted, computed } from "vue";
+<script setup lang="ts">
+import { ref, watch, computed, onMounted } from "vue";
+import {
+  useScroll,
+  useMouse,
+  useMousePressed,
+  useDebounceFn,
+} from "@vueuse/core";
 
 const props = defineProps({
   finalNumber: {
     type: Number,
-    required: true,
+    default: 0,
   },
   activeNumber: {
     type: Number,
-    required: true,
+    default: 0,
   },
   isRunning: {
     type: Boolean,
     default: false,
   },
+  scrollable: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(["update:activeNumber"]);
 
-const sliderInner = ref(null);
-const isDragging = ref(false);
-const startY = ref(0);
-const startValue = ref(0);
-
-const itemHeight = 40;
-
-const scrollSensitivity = 0.02; // Adjust this value as needed
-let accumulatedDelta = 0; // Add this line
-
-const isInteractive = computed(() => !props.isRunning);
-
+const sliderContainer = ref(null);
 const isFocused = ref(false);
 
-function formatNumber(value) {
+const { isScrolling, y: scrollY } = useScroll(sliderContainer);
+const { y: mouseY } = useMouse();
+const { pressed } = useMousePressed({ target: sliderContainer });
+
+const initialMouseY = ref(0);
+
+const itemHeight = computed(() => {
+  if (!props.scrollable) return 0;
+  return (
+    parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--slider-height"
+      )
+    ) / 3
+  );
+});
+
+function formatNumber(value: number): string {
   return value.toString().padStart(2, "0");
 }
 
-function handleWheel(event) {
-  if (!isInteractive.value) {
-    event.preventDefault();
-    return;
-  }
-  event.preventDefault();
-  const delta = event.deltaY;
-  accumulatedDelta += delta * scrollSensitivity;
-
-  if (Math.abs(accumulatedDelta) >= 1) {
-    const change =
-      Math.sign(accumulatedDelta) * Math.floor(Math.abs(accumulatedDelta));
-    updateValue(change);
-    accumulatedDelta -= change;
-  }
+function updateActiveNumber(scrollPosition: number) {
+  const newValue = Math.round(scrollPosition / itemHeight.value);
+  const clampedValue = Math.min(Math.max(newValue, 0), props.finalNumber);
+  emit("update:activeNumber", clampedValue);
 }
 
-function startDrag(event) {
-  if (!isInteractive.value) return;
-  isDragging.value = true;
-  startY.value = event.clientY;
-  startValue.value = props.activeNumber;
-}
+watch(isScrolling, (scrolling) => {
+  if (!scrolling && props.scrollable) debouncedUpdateActiveNumber();
+});
 
-function drag(event) {
-  if (!isInteractive.value || !isDragging.value) return;
-  const deltaY = startY.value - event.clientY;
-  const delta = Math.round(deltaY / itemHeight);
-  if (delta !== 0) {
-    updateValue(delta);
-    startY.value = event.clientY;
+const debouncedUpdateActiveNumber = useDebounceFn(() => {
+  updateActiveNumber(scrollY.value);
+}, 1000);
+
+function handleDragging(isPressed: boolean, currentMouseY: number) {
+  if (isPressed) {
+    if (initialMouseY.value === 0) initialMouseY.value = currentMouseY;
+
+    const diff = currentMouseY - initialMouseY.value;
+    scrollY.value -= diff;
+    initialMouseY.value = currentMouseY;
+  } else {
+    initialMouseY.value = 0;
   }
 }
 
-function stopDrag() {
-  isDragging.value = false;
-  snapSlider();
+// const scrollToNumber = (number: number) => {
+//   sliderContainer.value?.scrollTo({
+//     top: number * itemHeight.value,
+//     behavior: "smooth",
+//   });
+// };
+
+function updateScrollPosition(newVal: number) {
+  if (newVal === props.finalNumber) {
+    scrollY.value = (props.finalNumber + 1) * itemHeight.value;
+  } else {
+    scrollY.value = newVal * itemHeight.value;
+  }
 }
 
-function updateValue(delta) {
-  const newValue = Math.min(
-    Math.max(props.activeNumber + delta, 0),
-    props.finalNumber
-  );
-  emit("update:activeNumber", newValue);
-}
+const addFocusListener = () => {
+  sliderContainer.value?.addEventListener("focus", () => {
+    isFocused.value = true;
+  });
+};
 
-function snapSlider() {
-  const snapPosition = calculateSnapPosition();
-  sliderInner.value.style.transition = "transform 0.3s ease";
-  sliderInner.value.style.transform = `translateY(${snapPosition}px)`;
-  setTimeout(() => {
-    sliderInner.value.style.transition = "";
-  }, 300);
-}
+watch([pressed, mouseY], ([isPressed, currentMouseY]) => {
+  if (props.scrollable) handleDragging(isPressed, currentMouseY);
+});
 
 watch(
   () => props.activeNumber,
-  (newValue) => {
-    sliderInner.value.style.transform = `translateY(-${
-      newValue * itemHeight
-    }px)`;
+  (newVal) => {
+    if (props.scrollable) updateScrollPosition(newVal);
   }
 );
 
-const sliderContainer = ref(null);
-
-function focus() {
-  if (!isInteractive.value) return;
-  sliderContainer.value.focus();
-  isFocused.value = true;
-}
-
-function handleKeyDown(event) {
-  if (!isInteractive.value) return;
-  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-    event.preventDefault();
-    const delta = event.key === "ArrowUp" ? -1 : 1;
-    updateValue(delta);
-  }
-}
-
-function handleBlur() {
-  isFocused.value = false;
-}
-
 onMounted(() => {
-  sliderContainer.value.addEventListener("blur", handleBlur);
+  if (props.scrollable) addFocusListener();
 });
 </script>
 
 <style scoped>
-.number-slider {
+.number-slider-container {
   position: relative;
-  overflow: hidden;
-  outline: none; /* Remove default focus outline */
+  height: var(--slider-height);
+  width: calc(var(--slider-height) / 1.4);
 }
 
-.number-slider::before,
-.number-slider::after {
-  content: "";
+.number-slider {
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
-  height: 40px;
-  z-index: 1;
+  bottom: 0;
+  overflow-y: scroll;
+  outline: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  cursor: grab;
+}
+
+.number-slider-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--slider-height) / 1.7);
+  height: calc(var(--slider-height) / 2.7);
   pointer-events: none;
-  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  z-index: 1;
+  border-radius: 8px;
 }
 
-.number-slider::before {
-  top: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(240, 240, 240, 1) 20%,
-    rgba(240, 240, 240, 0)
-  );
+.snap-scroll {
+  scroll-snap-type: y mandatory;
 }
 
-.number-slider::after {
-  bottom: 0;
-  background: linear-gradient(
-    to top,
-    rgba(240, 240, 240, 1) 20%,
-    rgba(240, 240, 240, 0)
-  );
-}
-
-.number-slider.countdown-running::before,
-.number-slider.countdown-running::after {
-  height: calc(50% - 30px);
-  background: rgba(240, 240, 240, 1);
-}
-
-.number-slider.countdown-running::before {
-  top: 0;
-}
-
-.number-slider.countdown-running::after {
-  bottom: 0;
+.number-slider::-webkit-scrollbar {
+  display: none;
 }
 
 .slider-inner {
@@ -212,27 +198,18 @@ onMounted(() => {
 }
 
 .slider-item {
-  height: 40px;
+  height: calc(var(--slider-height) / 3);
+  width: calc(var(--slider-height) / 1.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: var(--number-size);
   font-weight: bold;
-}
-
-.slider-item.spacer {
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  scroll-snap-align: center;
 }
 
 .number-slider:focus {
-  box-shadow: none; /* Remove the focus box-shadow */
-}
-
-.number-slider.countdown-running {
-  pointer-events: auto;
+  box-shadow: none;
 }
 
 .active-number-box {
@@ -240,23 +217,28 @@ onMounted(() => {
   width: 60px;
   height: 30px;
   top: 50%;
-  left: 50%; /* Position it at the center horizontally */
-  transform: translate(
-    -50%,
-    -50%
-  ); /* Adjust for exact center both vertically and horizontally */
+  left: 50%;
+  transform: translate(-50%, -50%);
   border: 2px solid #000;
   opacity: 0.5;
   border-radius: 4px;
-  pointer-events: none;
   z-index: 2;
+  display: none;
 }
 
 .number-slider.is-focused .active-number-box {
   display: block;
 }
 
-.number-slider:not(.is-focused) .active-number-box {
-  display: none;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

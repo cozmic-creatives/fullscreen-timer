@@ -1,14 +1,11 @@
 import { createApp } from "vue";
-import "./style.css";
+import "@/assets/css/index.css";
 import App from "./App.vue";
-import "./assets/main.css";
-
-// Import the CountdownTimer component
-import CountdownTimer from "./components/CountdownTimer.vue";
 
 const app = createApp(App);
 
-// Register the CountdownTimer component globally
-app.component("CountdownTimer", CountdownTimer);
-
 app.mount("#app");
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js");
+}

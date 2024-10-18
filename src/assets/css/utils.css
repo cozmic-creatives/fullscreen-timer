@@ -1,0 +1,7 @@
+.cursor-grabbing {
+  cursor: grabbing !important;
+}
+
+.cursor-grab {
+  cursor: grab;
+}
