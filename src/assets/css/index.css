@@ -4,10 +4,52 @@
 @import "./utils.css";
 
 :root {
-  --number-size: 64px;
-  --slider-height: 160px;
+  /* Layout */
+  --number-size: 48px;
+  --slider-height: calc(var(--number-size) * 2.5);
+  --icon-size: 24px;
+
+  /* Colors */
+  --color-background: #000000;
+  --color-text: #ffffff;
+  --color-button: #e0e0e0;
+  --color-button-text: #333333;
+  --color-button-hover: #222222;
+  --color-ghost-button: rgba(255, 255, 255, 0.1);
+  --color-ghost-button-hover: rgba(255, 255, 255, 0.2);
+  --color-ghost-text: rgba(255, 255, 255, 0.7);
+
+  /* Typography */
+  --font-primary: "Montserrat", sans-serif;
+  --font-size-base: 16px;
+  --font-weight-bold: 700;
+
+  /* Button styles */
+  --button-height: 60px;
+  --button-border-radius: 999px;
+  --button-transition: background-color 0.3s ease, color 0.3s ease,
+    border 0.3s ease;
+  --button-box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+/* Tablet */
+@media screen and (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --number-size: 85px;
+    --button-height: 60px;
+  }
+}
+
+/* Desktop */
+@media screen and (min-width: 1024px) {
+  :root {
+    --number-size: 100px;
+    --button-height: 64px;
+    --icon-size: 28px;
+  }
+}
+
+/* Global styles */
 html,
 body {
   margin: 0;
@@ -15,43 +57,41 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #000000;
+  background-color: var(--color-background);
   scroll-behavior: smooth;
 }
 
-#app {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
 body {
-  font-family: "Montserrat", sans-serif;
-  background-color: black;
-  color: white;
+  font-family: var(--font-primary);
+  color: var(--color-text);
 }
 
+#app,
 .app-container {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #000000;
 }
 
+.lucide {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+/* Button styles */
 .button {
-  font-family: "Montserrat", sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  color: #333;
-  background-color: #e0e0e0;
-  border: 2px solid transparent;
-  border-radius: 30px;
-  height: 48px;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-button-text);
+  background-color: var(--color-button);
+  border: none;
+  border-radius: var(--button-border-radius);
+  height: var(--button-height);
   cursor: pointer;
-  transition: background-color 0.3s ease, color 0.3s ease, border 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: var(--button-transition);
+  box-shadow: var(--button-box-shadow);
   outline: none;
   display: flex;
   align-items: center;
@@ -59,17 +99,78 @@ body {
 }
 
 .button:hover {
-  background-color: black;
-  color: white;
-  border: 2px solid white;
+  background-color: var(--color-button-hover);
+  color: var(--color-text);
+}
+
+.button:focus {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
 }
 
 .button.icon {
-  width: 48px;
+  width: var(--button-height);
   stroke-width: 2;
   vertical-align: middle;
 }
 
 .button:hover.icon {
-  stroke: white;
+  stroke: var(--color-text);
+}
+
+.button.outline {
+  background-color: transparent;
+  color: var(--color-text);
+  border: 2px solid var(--color-text);
+}
+
+.button.outline:hover {
+  background-color: var(--color-text);
+  color: var(--color-background);
+}
+
+.button.outline.icon {
+  stroke: var(--color-text);
+}
+
+.button.outline:hover.icon {
+  stroke: var(--color-background);
+}
+
+.button.ghost {
+  color: var(--color-ghost-text);
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-ghost-button) 0%,
+    color-mix(in srgb, var(--color-ghost-button) 85%, white) 100%
+  );
+  background-repeat: no-repeat;
+  background-color: transparent;
+}
+
+.button.ghost:hover {
+  color: var(--color-text);
+  background-color: var(--color-ghost-button-hover);
+}
+
+.button.ghost.icon {
+  stroke: var(--color-ghost-text);
+}
+
+.button.ghost:hover.icon {
+  stroke: var(--color-text);
+}
+
+.container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 5%;
+  }
 }

@@ -2,7 +2,7 @@
   <div class="number-slider-container" v-if="scrollable">
     <div class="number-slider-box" v-show="isFocused"></div>
     <div
-      class="number-slider"
+      class="number-slider hide-scrollbar"
       tabindex="0"
       @focus="isFocused = true"
       @blur="isFocused = false"
@@ -11,7 +11,6 @@
         'is-running': isRunning,
         'is-focused': isFocused,
         'cursor-grabbing': pressed && scrollable,
-        'snap-scroll': !pressed && scrollable,
       }"
     >
       <div class="slider-inner">
@@ -36,13 +35,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from "vue";
+import { ref, watch, computed, onMounted, reactive } from "vue";
 import {
   useScroll,
   useMouse,
   useMousePressed,
   useDebounceFn,
+  useWindowSize,
 } from "@vueuse/core";
+import { isMobile } from "@/utils/device";
 
 const props = defineProps({
   finalNumber: {
@@ -67,22 +68,30 @@ const emit = defineEmits(["update:activeNumber"]);
 
 const sliderContainer = ref(null);
 const isFocused = ref(false);
-
 const { isScrolling, y: scrollY } = useScroll(sliderContainer);
 const { y: mouseY } = useMouse();
 const { pressed } = useMousePressed({ target: sliderContainer });
 
 const initialMouseY = ref(0);
 
+const { width: windowWidth, height: windowHeight } = useWindowSize();
+
+const cssVars = reactive({
+  numberSize: 0,
+  sliderHeight: 0,
+});
+
+const updateCSSVars = () => {
+  const root = document.documentElement;
+  cssVars.numberSize = parseFloat(
+    getComputedStyle(root).getPropertyValue("--number-size")
+  );
+  cssVars.sliderHeight = cssVars.numberSize * 2.5; // This matches your CSS calculation
+};
+
 const itemHeight = computed(() => {
   if (!props.scrollable) return 0;
-  return (
-    parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--slider-height"
-      )
-    ) / 3
-  );
+  return cssVars.sliderHeight / 3;
 });
 
 function formatNumber(value: number): string {
@@ -101,12 +110,11 @@ watch(isScrolling, (scrolling) => {
 
 const debouncedUpdateActiveNumber = useDebounceFn(() => {
   updateActiveNumber(scrollY.value);
-}, 1000);
+}, 100);
 
 function handleDragging(isPressed: boolean, currentMouseY: number) {
   if (isPressed) {
     if (initialMouseY.value === 0) initialMouseY.value = currentMouseY;
-
     const diff = currentMouseY - initialMouseY.value;
     scrollY.value -= diff;
     initialMouseY.value = currentMouseY;
@@ -115,18 +123,18 @@ function handleDragging(isPressed: boolean, currentMouseY: number) {
   }
 }
 
-// const scrollToNumber = (number: number) => {
-//   sliderContainer.value?.scrollTo({
-//     top: number * itemHeight.value,
-//     behavior: "smooth",
-//   });
-// };
+const scrollToNumber = (number: number) => {
+  sliderContainer.value?.scrollTo({
+    top: number * itemHeight.value,
+    behavior: "smooth",
+  });
+};
 
 function updateScrollPosition(newVal: number) {
   if (newVal === props.finalNumber) {
-    scrollY.value = (props.finalNumber + 1) * itemHeight.value;
+    scrollToNumber(newVal + 1);
   } else {
-    scrollY.value = newVal * itemHeight.value;
+    scrollToNumber(newVal);
   }
 }
 
@@ -137,7 +145,7 @@ const addFocusListener = () => {
 };
 
 watch([pressed, mouseY], ([isPressed, currentMouseY]) => {
-  if (props.scrollable) handleDragging(isPressed, currentMouseY);
+  if (props.scrollable && !isMobile()) handleDragging(isPressed, currentMouseY);
 });
 
 watch(
@@ -147,8 +155,18 @@ watch(
   }
 );
 
+const debouncedLogWindowWidth = useDebounceFn((width: number) => {
+  updateCSSVars();
+  updateScrollPosition(props.activeNumber);
+}, 500);
+
+watch(windowWidth, (newWindowWidth) => {
+  debouncedLogWindowWidth(newWindowWidth);
+});
+
 onMounted(() => {
   if (props.scrollable) addFocusListener();
+  updateCSSVars();
 });
 </script>
 
@@ -167,8 +185,6 @@ onMounted(() => {
   bottom: 0;
   overflow-y: scroll;
   outline: none;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
   cursor: grab;
 }
 
@@ -183,14 +199,6 @@ onMounted(() => {
   border: 2px solid rgba(255, 255, 255, 0.5);
   z-index: 1;
   border-radius: 8px;
-}
-
-.snap-scroll {
-  scroll-snap-type: y mandatory;
-}
-
-.number-slider::-webkit-scrollbar {
-  display: none;
 }
 
 .slider-inner {

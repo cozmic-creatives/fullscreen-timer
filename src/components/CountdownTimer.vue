@@ -1,57 +1,80 @@
 <template>
-  <div class="countdown-wrapper">
-    <div class="countdown-container" :class="{ 'is-running': isRunning }">
-      <!-- Active Task -->
+  <div class="countdown-container" :class="{ 'is-running': isRunning }">
+    <!-- Active Task -->
+    <div class="confetti-container">
+      <div id="confetti" ref="confetti"></div>
       <input
         v-model="activeTask"
         type="text"
         placeholder="Enter task"
         @keyup.enter="handleEnter"
         class="active-task-input"
+        :class="{ 'opacity-0': confettiIsActive }"
       />
+    </div>
 
-      <!-- Countdown Timer -->
-      <div class="countdown-timer">
-        <div class="sliders">
-          <NumberSlider
-            :finalNumber="23"
-            v-model:activeNumber="hours"
-            :isRunning="isRunning"
-          />
-          <div class="colon">:</div>
-          <NumberSlider
-            :finalNumber="59"
-            v-model:activeNumber="minutes"
-            :isRunning="isRunning"
-          />
-          <div class="colon">:</div>
-          <NumberSlider v-model:activeNumber="seconds" :scrollable="false" />
-        </div>
+    <!-- Countdown Timer -->
+    <div class="countdown-timer">
+      <div class="sliders">
+        <NumberSlider
+          :finalNumber="23"
+          v-model:activeNumber="hours"
+          :isRunning="isRunning"
+        />
+        <div class="colon">:</div>
+        <NumberSlider
+          :finalNumber="59"
+          v-model:activeNumber="minutes"
+          :isRunning="isRunning"
+        />
+        <div class="colon">:</div>
+        <NumberSlider v-model:activeNumber="seconds" :scrollable="false" />
       </div>
+    </div>
 
-      <!-- Controls -->
-      <div class="controls">
-        <button @click="handleButtonClick" class="button icon" tabindex="0">
-          <Play v-if="!isRunning" />
-          <Pause v-else />
-        </button>
-        <button @click="resetTimer" class="button icon" tabindex="0">
-          <RefreshCcw />
-        </button>
-      </div>
+    <!-- Controls -->
+    <div class="controls">
+      <button @click="handleButtonClick" class="button icon" tabindex="0">
+        <Play v-if="!isRunning" />
+        <Pause v-else />
+      </button>
+      <button @click="resetTimer" class="button icon" tabindex="0">
+        <RefreshCcw />
+      </button>
+      <button
+        @click="toggleWakeLock"
+        class="button icon"
+        :class="{ ghost: !isWakeLockActive }"
+        tabindex="0"
+      >
+        <Lightbulb v-if="isWakeLockActive" />
+        <LightbulbOff v-else />
+      </button>
+      <button @click="toggleInfo" class="button icon ghost" tabindex="0">
+        <Info />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onUnmounted, computed, onMounted, watch } from "vue";
+import { ref, onUnmounted, computed, onMounted, watch, inject } from "vue";
 import NumberSlider from "./NumberSlider.vue";
-import { Play, Pause, RefreshCcw } from "lucide-vue-next";
+import {
+  Play,
+  Pause,
+  RefreshCcw,
+  Info,
+  Lightbulb,
+  LightbulbOff,
+} from "lucide-vue-next";
 
 const hours = ref(0);
 const minutes = ref(0);
-const seconds = ref(3);
+const seconds = ref(2);
 const isRunning = ref(false);
+const confetti = ref(null);
+const confettiIsActive = ref(false);
 let timer = null;
 
 const activeTask = ref(""); // Add this line
@@ -82,6 +105,7 @@ function startTimer() {
       }
     } else {
       pauseTimer();
+      toggleConfetti(); // Add this line to trigger confetti when timer reaches zero
     }
   }, 1000);
 }
@@ -129,44 +153,97 @@ function loadTimerState() {
   }
 }
 
+const isWakeLockActive = ref(false);
+let wakeLock = null;
+
+async function toggleWakeLock() {
+  if (!isWakeLockActive.value) {
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      isWakeLockActive.value = true;
+    } catch (err) {
+      console.error(`${err.name}, ${err.message}`);
+    }
+  } else {
+    if (wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+    isWakeLockActive.value = false;
+  }
+}
+
+function initConfetti() {
+  let confetti = new Confetti("confetti");
+  confetti.setCount(75);
+  confetti.setSize(1);
+  confetti.setPower(25);
+  confetti.setFade(false);
+  confetti.destroyTarget(false);
+}
+
+function toggleConfetti() {
+  confettiIsActive.value = true;
+  const rect = confetti.value.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const bottomY = rect.bottom;
+
+  const event = new MouseEvent("click", {
+    view: window,
+    bubbles: true,
+    cancelable: true,
+    clientX: centerX,
+    clientY: bottomY,
+  });
+
+  confetti.value.dispatchEvent(event);
+
+  setTimeout(() => {
+    confettiIsActive.value = false;
+  }, 3000);
+}
+
 onUnmounted(() => {
   if (timer) clearInterval(timer);
+  if (wakeLock) wakeLock.release();
 });
 
 // Load saved timer state from localStorage
-onMounted(loadTimerState);
+onMounted(() => {
+  // loadTimerState();
+  initConfetti();
+});
 
 // Save timer state to localStorage whenever it changes
 watch([hours, minutes, seconds, isRunning, activeTask], saveTimerState, {
   deep: true,
 });
+
+const toggleInfo = inject("toggleInfo");
 </script>
 
 <style scoped>
-.countdown-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 2rem;
+.countdown-container {
+  --transform-distance: 2rem;
 }
 
 .countdown-container {
+  z-index: 0;
   display: grid;
   grid-template-rows: auto auto auto;
-  gap: 1rem;
   justify-items: center;
   max-width: 100%;
   transition: gap 0.3s ease;
 }
 
-.countdown-container.is-running {
-  gap: 0;
+.countdown-container.is-running .active-task-input {
+  transform: translateY(var(--transform-distance));
 }
 
 .countdown-timer {
   user-select: none;
   width: 100%;
+  z-index: 0;
 }
 
 .sliders {
@@ -218,17 +295,35 @@ watch([hours, minutes, seconds, isRunning, activeTask], saveTimerState, {
 
 .controls {
   display: flex;
-  gap: 12px;
+  gap: 15px;
+  z-index: 1;
   opacity: 1;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .countdown-container.is-running .controls {
   opacity: 0;
+  transform: translateY(calc(-1 * var(--transform-distance)));
 }
 
 .countdown-container.is-running:hover .controls {
   opacity: 1;
+}
+
+.confetti-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.confetti-container #confetti {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: translateY(-100%);
 }
 
 .active-task-input {
@@ -237,9 +332,9 @@ watch([hours, minutes, seconds, isRunning, activeTask], saveTimerState, {
   font-weight: 700;
   border: none;
   color: white;
-  padding: 8px 16px;
+  padding: 0;
   text-align: center;
-  width: 100%;
+  transition: transform 0.3s ease, opacity 0.2s ease;
   height: 100%;
 }
 
@@ -249,17 +344,5 @@ watch([hours, minutes, seconds, isRunning, activeTask], saveTimerState, {
 
 .active-task-input::placeholder {
   color: rgba(255, 255, 255, 0.5);
-}
-
-@media (max-width: 768px) {
-  .countdown-container {
-    gap: 1rem;
-    padding: 1rem;
-  }
-
-  .active-task-input {
-    font-size: calc(var(--number-size) / 4);
-    padding: 6px 12px;
-  }
 }
 </style>
