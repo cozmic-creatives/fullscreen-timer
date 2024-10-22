@@ -71,7 +71,7 @@ import {
 
 const hours = ref(0);
 const minutes = ref(0);
-const seconds = ref(2);
+const seconds = ref(0);
 const isRunning = ref(false);
 const confetti = ref(null);
 const confettiIsActive = ref(false);
@@ -179,7 +179,7 @@ function initConfetti() {
   confetti.setSize(1);
   confetti.setPower(25);
   confetti.setFade(false);
-  confetti.destroyTarget(false);
+  confetti.destroyTarget(true);
 }
 
 function toggleConfetti() {
@@ -210,7 +210,7 @@ onUnmounted(() => {
 
 // Load saved timer state from localStorage
 onMounted(() => {
-  // loadTimerState();
+  loadTimerState();
   initConfetti();
 });
 
