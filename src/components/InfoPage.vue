@@ -57,6 +57,12 @@
       </div>
     </div>
 
+    <img
+      class="example-screenshot"
+      src="/example.jpeg"
+      alt="Focus Timer Screenshot"
+    />
+
     <div class="credit">
       <span>Made with</span>
       <Heart color="red" class="beating-heart" />
@@ -132,5 +138,11 @@ const toggleInfo = inject("toggleInfo");
   100% {
     transform: scale(1);
   }
+}
+
+.example-screenshot {
+  width: 100%;
+  margin-top: 20px;
+  border-radius: 10px;
 }
 </style>
